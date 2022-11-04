@@ -28,7 +28,7 @@ provider:
     - Effect: Allow
       Action:
         - lambda:InvokeFunction
-      Resource: { "Fn::Join": [":", ["arn:aws:lambda:${self:provider.region}", { "Ref": "AWS::AccountId" }, "function", "${self:services.scheduleFunction}" ] ]  }
+      Resource: "*"
     - Effect: Allow
       Action:
         - SQS:SendMessage

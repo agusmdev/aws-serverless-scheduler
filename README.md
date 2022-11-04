@@ -1,6 +1,7 @@
 ## AWS Serverless scheduler
 
-This code is a simplified and redesigned version of @bahrmichael's [repo](https://github.com/bahrmichael/aws-scheduler).
+**This code is a simplified and redesigned version of @bahrmichael's [repo](https://github.com/bahrmichael/aws-scheduler).**
+
 Right now this repo is only capable of scheduling webhook-related tasks
 
 
@@ -70,12 +71,15 @@ input_topic = "arn:aws:sns:{YOUR_AWS_REGION}:{YOUR_AWS_ACCOUNT_ID}:{YOUR_INPUT_T
 client.publish(TopicArn=input_topic, Message=json.dumps(event))
 ```
 
-
 ## Limitations
 
 - Events may arrive more than once
 - Check your AWS Lambda concurrent execution quota, if you send too many messages at the same time you might drown your lambdas
 -  This approach costs more than using DynamoDB's TTL attribute. If delays of 30 minutes to 48 hours are acceptable for you, then check out [this article](https://medium.com/swlh/scheduling-irregular-aws-lambda-executions-through-dynamodb-ttl-attributes-acd397dfbad9). 
+
+## Contributions
+
+Contributions are welcome, both issues and code. Get in touch at twitter [@agusmdev](https://twitter.com/agusmdev) or create an issue.
 
 ## TODOs
 - Add batch processing for SQS and SNS messages
