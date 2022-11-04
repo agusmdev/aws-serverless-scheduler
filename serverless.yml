@@ -1,0 +1,102 @@
+service: serverless-scheduler
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-2'}
+  environment:
+    STAGE: "${self:provider.stage}"
+    REGION_NAME: "${self:provider.region}"
+    QUEUE_URL: "${self:services.queue.url}"
+  tags:
+    project: serverless-scheduler
+  # iam:
+  #   role: !Sub arn:aws:iam::${AWS::AccountId}:role/lambda_full_access # Existing role on my AWS account
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:DeleteItem
+        - dynamodb:PutItem
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:GetItem
+        - dynamodb:GetShardIterator
+      Resource:
+        - "${self:services.table.arn}"
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: { "Fn::Join": [":", ["arn:aws:lambda:${self:provider.region}", { "Ref": "AWS::AccountId" }, "function", "${self:services.scheduleFunction}" ] ]  }
+    - Effect: Allow
+      Action:
+        - SQS:SendMessage
+      Resource:
+      - "${self:services.queue.arn}"
+    - Effect: Allow
+      Action:
+        - cloudwatch:PutMetricData
+      Resource: "*"
+
+services:
+  inbound:
+    name: "serverless-scheduler-input-topic"
+    arn: { "Fn::Join": [":", ["arn:aws:sns:${self:provider.region}", { "Ref": "AWS::AccountId" }, "${self:services.inbound.name}" ] ]  }
+  queue:
+    name: "serverless-scheduler-delivery"
+    arn: { "Fn::Join": [":", ["arn:aws:sqs:${self:provider.region}", { "Ref": "AWS::AccountId" }, "${self:services.queue.name}" ] ]  }
+    url: { "Fn::Join": ["/", ["https://sqs.${self:provider.region}.amazonaws.com", { "Ref": "AWS::AccountId" }, "${self:services.queue.name}" ] ]  }
+  table:
+    arn: { "Fn::Join": [":", ["arn:aws:dynamodb:${self:provider.region}", { "Ref": "AWS::AccountId" }, "table/serverless-scheduler-events" ] ]  }
+  pythonRequirements:
+    pythonBin: python3
+
+functions:
+  consumer:
+    handler: scheduler/handler.consumer_handler
+    events:
+      - sns:
+          arn:
+            Fn::Join:
+              - ':'
+              - - 'arn:aws:sns'
+                - Ref: 'AWS::Region'
+                - Ref: 'AWS::AccountId'
+                - "${self:services.inbound.name}"
+          topicName: "${self:services.inbound.name}"
+    tags:
+      resource: serverless-scheduler-consumer
+
+  eventLoader:
+    handler: scheduler/handler.event_loader_handler
+    events:
+      - schedule: rate(1 minute)
+    # when we have to wait for DynamoDB autoscaling we may exceed the default of 6s
+    timeout: 30
+    tags:
+      resource: serverless-scheduler-event-loader
+
+  emitter:
+    handler: scheduler/handler.emitter_handler
+    events:
+      - sqs:
+          arn: 
+            Fn::Join:
+              - ':'
+              - - arn
+                - aws
+                - sqs
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - "${self:services.queue.name}"
+    timeout: 20
+    tags:
+      resource: serverless-scheduler-emitter
+
+plugins:
+  - serverless-python-requirements
+package:
+  exclude:
+    - venv/**
+    - node_modules/**
